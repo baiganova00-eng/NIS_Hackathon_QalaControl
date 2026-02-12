@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>QalaControl - Прототип</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body {font-family:'Roboto',sans-serif; background:#f0f2f5; margin:0;}
+header{background:#0077cc; color:#fff; padding:15px; text-align:center;}
+header h1{margin:0;}
+.section{display:none; padding:20px;}
+.active{display:block;}
+form label{display:block; margin:10px 0;}
+form input, form select{width:100%; padding:8px; border-radius:5px; border:1px solid #ccc;}
+ul{list-style:none; padding:0;}
+li{background:#fff; margin:8px 0; padding:15px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+li img{margin-top:5px; border-radius:5px;}
+button{margin:5px; padding:5px 10px; border:none; border-radius:5px; cursor:pointer; transition:0.2s;}
+button:hover{opacity:0.85;}
+#map,#workerMap{height:300px; border-radius:8px; margin:10px 0;}
+.dashboard{display:flex; gap:10px; margin-top:10px;}
+.dashboard div{background:#fff; padding:10px; border-radius:8px; flex:1; text-align:center; box-shadow:0 3px 5px rgba(0,0,0,0.1);}
+.tabs{display:flex; gap:10px; margin-top:10px;}
+.tab{padding:8px 15px; background:#fff; border-radius:5px; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+.tab.active{background:#0077cc; color:#fff;}
+.user-info{display:flex; align-items:center; gap:10px; margin-top:10px;}
+.user-info img{width:40px; height:40px; border-radius:50%;}
+.status-tag{padding:3px 8px; border-radius:5px; font-weight:500; color:#fff;}
+.status-Prинято{background:#3498db;}
+.status-В работе{background:#f1c40f;}
+.status-Выполнено{background:#2ecc71;}
+.status-Просрочено{background:#e74c3c;}
+.card{background:#fff; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.1); padding:15px; margin-bottom:10px;}
+.card h4{margin:0 0 5px 0;}
+.card img{border-radius:5px; max-width:100px; margin-top:5px;}
+</style>
+</head>
+<body>
+
+<header>
+<h1>QalaControl</h1>
+</header>
+
+<!-- Регистрация -->
+<section id="registerSection" class="section active">
+<h2>Регистрация</h2>
+<form id="registerForm">
+<label>Имя:<input type="text" id="regName" required></label>
+<label>Email:<input type="email" id="regEmail" required></label>
+<label>Пароль:<input type="password" id="regPass" required></label>
+<label>Роль:
+<select id="regRole" required>
+<option value="">Выберите роль</option>
+<option value="citizen">Житель</option>
+<option value="worker">Исполнитель</option>
+<option value="admin">Акимат</option>
+</select>
+</label>
+<label>Аватарка: <input type="file" id="regAvatar" accept="image/*"></label>
+<button type="submit">Зарегистрироваться</button>
+</form>
+</section>
+
+<!-- Главный интерфейс -->
+<section id="mainSection" class="section">
+<div class="user-info" id="userInfo"></div>
+
+<!-- Житель -->
+<section id="citizen" class="section">
+<h2>Модуль Активный житель</h2>
+<form id="citizenForm">
+<label>Город:<input type="text" id="city" required></label>
+<label>Адрес:<input type="text" id="address" required></label>
+<label>Категория:
+<select id="category">
+<option value="Яма">Яма</option>
+<option value="Свет">Свет</option>
+<option value="Мусор">Мусор</option>
+</select>
+</label>
+<label>Описание:<input type="text" id="description" required></label>
+<label>Фото: <input type="file" id="photoInput" accept="image/*"></label>
+<div id="map"></div>
+<input type="hidden" id="geo">
+<button type="submit">Отправить заявку</button>
+</form>
+<h3>Ваши заявки</h3>
+<ul id="citizenRequests"></ul>
+<p>Баллы за активность: <span id="citizenPoints">0</span></p>
+</section>
+
+<!-- Исполнитель -->
+<section id="worker" class="section">
+<h2>Модуль Полевой сотрудник</h2>
+<ul id="workerTasks"></ul>
+<div id="workerMap"></div>
+</section>
+
+<!-- Акимат -->
+<section id="admin" class="section">
+<h2>Панель Акимата</h2>
+<div class="tabs">
+<div class="tab active" data-tab="all">Все заявки</div>
+<div class="tab" data-tab="done">Выполненные</div>
+<div class="tab" data-tab="notdone">Не выполненные</div>
+</div>
+<div id="adminContent"></div>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let users = [];
+let currentUser = null;
+let requests = [];
+let citizenPoints = 0;
+let photoURL = '';
+let map, workerMap;
+let markers = [];
+let adminCurrentTab='all';
+
+document.addEventListener('DOMContentLoaded',()=>{
+    map = L.map('map').setView([51.1694,71.4491],12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy;OSM'}).addTo(map);
+
+    workerMap = L.map('workerMap').setView([51.1694,71.4491],12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy;OSM'}).addTo(workerMap);
+
+    // карта для жителя
+    let marker;
+    map.on('click',e=>{
+        if(marker) map.removeLayer(marker);
+        marker = L.marker([e.latlng.lat,e.latlng.lng]).addTo(map);
+        document.getElementById('geo').value=`${e.latlng.lat},${e.latlng.lng}`;
+    });
+
+    document.querySelectorAll('.tab').forEach(tab=>{
+        tab.addEventListener('click',()=>{
+            document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+            tab.classList.add('active');
+            adminCurrentTab=tab.dataset.tab;
+            updateLists();
+        });
+    });
+});
+
+// Регистрация
+document.getElementById('registerForm').addEventListener('submit',e=>{
+    e.preventDefault();
+    const name=document.getElementById('regName').value;
+    const email=document.getElementById('regEmail').value;
+    const pass=document.getElementById('regPass').value;
+    const role=document.getElementById('regRole').value;
+    const avatarFile=document.getElementById('regAvatar').files[0];
+    let avatarURL=avatarFile?URL.createObjectURL(avatarFile):'';
+
+    if(role==='admin' && !email.includes('gov')){
+        alert('Для роли Акимат используйте email gov');
+        return;
+    }
+
+    users.push({name,email,pass,role,avatar:avatarURL});
+    currentUser={name,role,avatar:avatarURL};
+    document.getElementById('registerSection').style.display='none';
+    document.getElementById('mainSection').style.display='block';
+    document.getElementById('userInfo').innerHTML=`<img src="${currentUser.avatar}" alt="avatar"><b>${currentUser.name}</b>`;
+    showSection(currentUser.role);
+});
+
+// Переключение окон
+function showSection(role){
+    document.querySelectorAll('#mainSection .section').forEach(s=>s.style.display='none');
+    document.getElementById(role).style.display='block';
+    if(role==='citizen') map.invalidateSize();
+    if(role==='worker') workerMap.invalidateSize();
+}
+
+// Житель отправка заявки
+document.getElementById('citizenForm').addEventListener('submit',e=>{
+    e.preventDefault();
+    const city=document.getElementById('city').value;
+    const address=document.getElementById('address').value;
+    const category=document.getElementById('category').value;
+    const description=document.getElementById('description').value;
+    const geo=document.getElementById('geo').value;
+    if(!geo){ alert('Выберите точку на карте'); return;}
+    requests.push({
+        city,address,category,description,geo,
+        photoBefore:photoURL,photoAfter:'',status:'Принято',
+        confirmed:false,worker:null,hoursSpent:null,created:new Date(),sla:60
+    });
+    photoURL='';
+    document.getElementById('citizenForm').reset();
+    updateLists();
+});
+
+// Фото жителя
+document.getElementById('photoInput').addEventListener('change',e=>{
+    const file=e.target.files[0]; if(file) photoURL=URL.createObjectURL(file);
+});
+
+// Обновление списков
+function updateLists(){
+    // Житель
+    const citizenList=document.getElementById('citizenRequests');
+    if(citizenList){
+        citizenList.innerHTML='';
+        requests.forEach(req=>{
+            let li=document.createElement('li');
+            li.innerHTML=`<div class="card"><h4>[${req.city}] ${req.category}</h4>${req.description}<br>
+            <span class="status-tag status-${req.status.replace(' ','')}">${req.status}</span>
+            ${req.status==='Выполнено'&&!req.confirmed?'<br><button onclick="confirmCitizen('+requests.indexOf(req)+')">Подтвердить</button>':''}
+            </div>`;
+            citizenList.appendChild(li);
+        });
+    }
+
+    // Исполнитель
+    const workerList=document.getElementById('workerTasks'); 
+    if(workerList){
+        workerList.innerHTML='';
+        if(markers.length){markers.forEach(m=>workerMap.removeLayer(m)); markers=[];}
+        requests.filter(r=>r.status==='Принято'||r.status==='В работе').forEach((req,index)=>{
+            let li=document.createElement('li');
+            li.innerHTML=`<div class="card"><h4>[${req.city}] ${req.category}</h4>${req.description}<br>
+            Фото До: ${req.photoBefore?'<img src="'+req.photoBefore+'" width="80">':'Нет'}<br>
+            Фото После: ${req.photoAfter?'<img src="'+req.photoAfter+'" width="80">':'Нет'}<br>
+            Время: ${req.hoursSpent?req.hoursSpent+' ч':'-'}</div>`;
+            
+            // Кнопки
+            let btnStart=document.createElement('button'); btnStart.textContent=req.status==='Принято'?'Принять заявку':'В работе';
+            btnStart.onclick=()=>{req.status='В работе'; req.worker=currentUser.name; req.startTime=new Date(); updateLists();}
+            li.appendChild(btnStart);
+
+            let btnDone=document.createElement('button'); btnDone.textContent='Выполнено';
+            btnDone.onclick=()=>{
+                const fileInput=document.createElement('input'); fileInput.type='file'; fileInput.accept='image/*';
+                fileInput.onchange=e=>{
+                    const file=e.target.files[0]; if(file){ req.photoAfter=URL.createObjectURL(file);
+                        const hours=prompt('Сколько часов ушло?'); req.hoursSpent=hours||0; req.status='Выполнено'; updateLists();
+                    }
+                }; fileInput.click();
+            }
+            li.appendChild(btnDone);
+
+            let btnReject=document.createElement('button'); btnReject.textContent='Не выполнено';
+            btnReject.onclick=()=>{req.status='Принято'; req.worker=null; updateLists();}
+            li.appendChild(btnReject);
+
+            workerList.appendChild(li);
+
+            // Маркеры
+            if(req.geo){
+                const coords=req.geo.split(',');
+                const m=L.marker([parseFloat(coords[0]),parseFloat(coords[1])]).addTo(workerMap).bindPopup(`${req.category}: ${req.description}`);
+                markers.push(m);
+            }
+        });
+    }
+
+    // Акимат
+    const adminContent=document.getElementById('adminContent');
+    if(adminContent){
+        adminContent.innerHTML='';
+        let filtered=[];
+        if(adminCurrentTab==='all') filtered=requests;
+        if(adminCurrentTab==='done') filtered=requests.filter(r=>r.status==='Выполнено');
+        if(adminCurrentTab==='notdone') filtered=requests.filter(r=>r.status!=='Выполнено');
+        filtered.forEach(req=>{
+            let li=document.createElement('li');
+            li.innerHTML=`<div class="card"><h4>[${req.city}] ${req.category}</h4>${req.description}<br>
+            Статус: <span class="status-tag status-${req.status.replace(' ','')}">${req.status}</span><br>
+            Фото До: ${req.photoBefore?'<img src="'+req.photoBefore+'" width="80">':'Нет'}<br>
+            Фото После: ${req.photoAfter?'<img src="'+req.photoAfter+'" width="80">':'Нет'}<br>
+            Исполнитель: ${req.worker?req.worker:'-'}<br>
+            Время: ${req.hoursSpent?req.hoursSpent+' ч':'-'}</div>`;
+            adminContent.appendChild(li);
+        });
+    }
+}
+
+function confirmCitizen(index){ requests[index].confirmed=true; citizenPoints+=10; document.getElementById('citizenPoints').textContent=citizenPoints; updateLists(); }
+
+// SLA
+setInterval(()=>{
+    const now=new Date();
+    requests.forEach(r=>{
+        if(r.status!=='Выполнено' && r.status!=='Просрочено'){
+            const diff=(now-r.created)/1000/60;
+            if(diff>r.sla) r.status='Просрочено';
+        }
+    });
+    updateLists();
+},30000);
+
+</script>
+</body>
+</html>
