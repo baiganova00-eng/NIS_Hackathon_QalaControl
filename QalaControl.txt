@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>QalaControl Multi-User</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body {font-family:'Roboto',sans-serif; background:#f4f6f8; margin:0; color:#333;}
+header {background:#0D6EFD; color:#fff; padding:20px; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.1);}
+header h1 {margin:0; font-size:2em; letter-spacing:1px;}
+section{padding:20px; max-width:1200px; margin:auto;}
+form label{display:block; margin:12px 0; font-weight:500;}
+form input, form select, form button{width:100%; padding:10px; margin-top:5px; border-radius:8px; border:1px solid #ccc; font-size:1em; transition:0.2s;}
+form input:focus, form select:focus{border-color:#0D6EFD; outline:none;}
+form button{background:#0D6EFD; color:white; font-weight:600; border:none; cursor:pointer;}
+form button:hover{background:#0b5ed7;}
+.card{background:#fff; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.08); padding:15px; margin-bottom:12px; transition:0.3s;}
+.card:hover{transform:translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,0.12);}
+.card h4{margin:0 0 8px 0; font-weight:600;}
+.card img{border-radius:8px; max-width:120px; margin-top:8px;}
+.status-tag{padding:5px 10px; border-radius:12px; font-weight:500; font-size:0.9em; color:#fff; display:inline-block; margin-top:5px;}
+.status-Принято{background:#3498db;}
+.status-В работе{background:#f1c40f; color:#000;}
+.status-Выполнено{background:#2ecc71;}
+.status-Просрочено{background:#e74c3c;}
+.user-info{display:flex; align-items:center; gap:15px; margin-bottom:15px;}
+.user-info img{width:50px; height:50px; border-radius:50%; border:2px solid #0D6EFD;}
+#map,#workerMap{height:300px; border-radius:10px; margin:15px 0; box-shadow:0 3px 8px rgba(0,0,0,0.08);}
+.tabs{display:flex; gap:10px; margin-bottom:15px;}
+.tab{padding:10px 20px; background:#fff; border-radius:8px; cursor:pointer; font-weight:500; box-shadow:0 2px 6px rgba(0,0,0,0.08); transition:0.3s;}
+.tab.active{background:#0D6EFD; color:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.15);}
+</style>
+</head>
+<body>
+
+<header>
+<h1>QalaControl</h1>
+</header>
+
+<!-- Регистрация -->
+<section id="registerSection">
+<h2>Регистрация</h2>
+<form id="registerForm">
+<label>Имя:<input type="text" id="regName" required></label>
+<label>Email:<input type="email" id="regEmail" required></label>
+<label>Пароль:<input type="password" id="regPass" required></label>
+<label>Роль:
+<select id="regRole" required>
+<option value="">Выберите роль</option>
+<option value="citizen">Житель</option>
+<option value="worker">Исполнитель</option>
+<option value="admin">Акимат</option>
+</select>
+</label>
+<label>Аватарка: <input type="file" id="regAvatar" accept="image/*"></label>
+<button type="submit">Зарегистрироваться</button>
+</form>
+</section>
+
+<!-- Панель -->
+<section id="mainSection" style="display:none;">
+<div class="user-info" id="userInfo"></div>
+
+<!-- Житель -->
+<section id="citizen" style="display:none;">
+<h2>Модуль Житель</h2>
+<form id="citizenForm">
+<label>Город:<input type="text" id="city" required></label>
+<label>Адрес:<input type="text" id="address" required></label>
+<label>Категория:
+<select id="category">
+<option value="Яма">Яма</option>
+<option value="Свет">Свет</option>
+<option value="Мусор">Мусор</option>
+</select>
+</label>
+<label>Описание:<input type="text" id="description" required></label>
+<label>Фото: <input type="file" id="photoInput" accept="image/*"></label>*
